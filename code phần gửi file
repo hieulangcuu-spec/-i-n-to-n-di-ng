@@ -1,0 +1,162 @@
+package sever;
+
+import javax.swing.*;
+import java.awt.*;
+import java.io.*;
+import java.net.Socket;
+
+public class ClientUI extends JFrame {
+
+    private JTextField txtIP, txtPort;
+    private JButton btnChoose, btnSend;
+    private JLabel lblFile, lblStatus, lblSpeed, lblSecurity;
+    private JProgressBar progressBar;
+    private JTextArea txtPreview;
+    private File selectedFile;
+
+    public ClientUI() {
+        setTitle("Client - Gửi file");
+        setSize(600, 420);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout(10, 10));
+
+        // ===== TOP =====
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        txtIP = new JTextField("127.0.0.1", 10);
+        txtPort = new JTextField(6);
+        top.add(new JLabel("IP:"));
+        top.add(txtIP);
+        top.add(new JLabel("Port:"));
+        top.add(txtPort);
+        add(top, BorderLayout.NORTH);
+
+        // ===== CENTER =====
+        JPanel center = new JPanel(new BorderLayout(10, 10));
+
+        JPanel choosePanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        btnChoose = new JButton("Chọn file");
+        lblFile = new JLabel("Chưa chọn file");
+        choosePanel.add(btnChoose);
+        choosePanel.add(lblFile);
+
+        txtPreview = new JTextArea(8, 40);
+        txtPreview.setEditable(false);
+        JScrollPane scroll = new JScrollPane(txtPreview);
+
+        center.add(choosePanel, BorderLayout.NORTH);
+        center.add(scroll, BorderLayout.CENTER);
+
+        add(center, BorderLayout.CENTER);
+
+        // ===== BOTTOM =====
+        JPanel bottom = new JPanel(new GridLayout(4, 1));
+
+        JPanel sendPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        btnSend = new JButton("Gửi file");
+        progressBar = new JProgressBar(0, 100);
+        progressBar.setPreferredSize(new Dimension(300, 20));
+        progressBar.setStringPainted(true);
+        sendPanel.add(btnSend);
+        sendPanel.add(progressBar);
+
+        lblSpeed = new JLabel("Tốc độ: 0 KB/s | Còn lại: --");
+        lblStatus = new JLabel(" ");
+        lblSecurity = new JLabel("🔒 Dữ liệu được mã hóa đầu cuối");
+
+        bottom.add(sendPanel);
+        bottom.add(lblSpeed);
+        bottom.add(lblStatus);
+        bottom.add(lblSecurity);
+
+        add(bottom, BorderLayout.SOUTH);
+
+        btnChoose.addActionListener(e -> chooseFile());
+        btnSend.addActionListener(e -> sendFile());
+    }
+
+    private void chooseFile() {
+        JFileChooser chooser = new JFileChooser();
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            selectedFile = chooser.getSelectedFile();
+            lblFile.setText("Đã chọn: " + selectedFile.getName());
+            previewFile(selectedFile);
+        }
+    }
+
+    private void previewFile(File file) {
+        txtPreview.setText("");
+        String name = file.getName().toLowerCase();
+
+        try {
+            if (name.endsWith(".txt")) {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                for (int i = 0; i < 20; i++) {
+                    String line = br.readLine();
+                    if (line == null) break;
+                    txtPreview.append(line + "\n");
+                }
+                br.close();
+            } else {
+                txtPreview.setText("⚠ Không hỗ trợ xem trước file này");
+            }
+        } catch (Exception e) {
+            txtPreview.setText("Không thể xem trước file");
+        }
+    }
+
+    private void sendFile() {
+        if (selectedFile == null) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn file!");
+            return;
+        }
+
+        new Thread(() -> {
+            try (
+                Socket socket = new Socket(txtIP.getText(), Integer.parseInt(txtPort.getText()));
+                DataInputStream dis = new DataInputStream(socket.getInputStream());
+                DataOutputStream dos = new DataOutputStream(socket.getOutputStream());
+                FileInputStream fis = new FileInputStream(selectedFile)
+            ) {
+                dis.readUTF(); // READY
+
+                dos.writeUTF(selectedFile.getName());
+                dos.writeLong(selectedFile.length());
+
+                byte[] buffer = new byte[4096];
+                long sent = 0;
+                long startTime = System.currentTimeMillis();
+
+                int read;
+                while ((read = fis.read(buffer)) != -1) {
+                    dos.write(buffer, 0, read);
+                    sent += read;
+
+                    long now = System.currentTimeMillis();
+                    double speed = sent / ((now - startTime) / 1000.0 + 1);
+                    long remaining = (long) ((selectedFile.length() - sent) / speed);
+
+                    int percent = (int) (sent * 100 / selectedFile.length());
+
+                    SwingUtilities.invokeLater(() -> {
+                        progressBar.setValue(percent);
+                        lblSpeed.setText(String.format(
+                                "Tốc độ: %.1f KB/s | Còn lại: %d giây",
+                                speed / 1024, remaining));
+                    });
+                }
+
+                SwingUtilities.invokeLater(() -> lblStatus.setText("✅ Gửi thành công"));
+
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() ->
+                        JOptionPane.showMessageDialog(this,
+                                "❌ Không kết nối được server.\nHãy kiểm tra IP và Port."));
+            }
+        }).start();
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new ClientUI().setVisible(true));
+    }
+}
