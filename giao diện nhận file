@@ -1,0 +1,163 @@
+package sever;
+
+import javax.swing.*;
+import java.awt.*;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
+
+public class ServerUI extends JFrame {
+
+    private JTextField txtPort;
+    private JButton btnStart, btnCancel, btnFolder;
+    private JLabel lblStatus;
+    private JProgressBar progressBar;
+    private File saveFolder;
+
+    private ServerSocket server;
+    private volatile boolean running = false;
+
+    public ServerUI() {
+        setTitle("Server - Nhận file");
+        setSize(520, 230);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout(10, 10));
+
+        // ===== Panel top =====
+        JPanel panelTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        txtPort = new JTextField("", 6);
+        btnStart = new JButton("Bắt đầu");
+        btnCancel = new JButton("Huỷ");
+        btnFolder = new JButton("Chọn thư mục");
+
+        btnCancel.setEnabled(false);
+
+        panelTop.add(new JLabel("Port:"));
+        panelTop.add(txtPort);
+        panelTop.add(btnStart);
+        panelTop.add(btnCancel);
+        panelTop.add(btnFolder);
+
+        add(panelTop, BorderLayout.NORTH);
+
+        // ===== Panel center =====
+        JPanel panelCenter = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        lblStatus = new JLabel("Trạng thái: Chưa chạy");
+        progressBar = new JProgressBar(0, 100);
+        progressBar.setPreferredSize(new Dimension(350, 22));
+        progressBar.setStringPainted(true);
+
+        panelCenter.add(lblStatus);
+        panelCenter.add(progressBar);
+        add(panelCenter, BorderLayout.CENTER);
+
+        // ===== Events =====
+        btnFolder.addActionListener(e -> chooseFolder());
+        btnStart.addActionListener(e -> startServer());
+        btnCancel.addActionListener(e -> stopServer());
+    }
+
+    private void chooseFolder() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        if (chooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+            saveFolder = chooser.getSelectedFile();
+            lblStatus.setText("Lưu tại: " + saveFolder.getAbsolutePath());
+        }
+    }
+
+    private void startServer() {
+        if (txtPort.getText().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập port!");
+            return;
+        }
+
+        btnStart.setEnabled(false);
+        btnCancel.setEnabled(true);
+        running = true;
+
+        new Thread(() -> {
+            try {
+                server = new ServerSocket(Integer.parseInt(txtPort.getText()));
+                SwingUtilities.invokeLater(() ->
+                        lblStatus.setText("Đang chờ client kết nối..."));
+
+                while (running) {
+                    Socket socket = server.accept();
+                    handleClient(socket);
+                }
+
+            } catch (Exception ex) {
+                if (running) {
+                    SwingUtilities.invokeLater(() ->
+                            JOptionPane.showMessageDialog(this, "Lỗi server: " + ex.getMessage()));
+                }
+            } finally {
+                SwingUtilities.invokeLater(() -> {
+                    lblStatus.setText("Server đã dừng");
+                    btnStart.setEnabled(true);
+                    btnCancel.setEnabled(false);
+                    progressBar.setValue(0);
+                });
+            }
+        }).start();
+    }
+
+    private void stopServer() {
+        running = false;
+
+        try {
+            if (server != null && !server.isClosed()) {
+                server.close(); // thoát accept()
+            }
+        } catch (IOException ignored) {}
+
+        lblStatus.setText("Đã huỷ chờ client");
+        btnStart.setEnabled(true);
+        btnCancel.setEnabled(false);
+        progressBar.setValue(0);
+    }
+
+    private void handleClient(Socket socket) {
+        new Thread(() -> {
+            try (
+                DataInputStream dis = new DataInputStream(socket.getInputStream());
+                DataOutputStream dos = new DataOutputStream(socket.getOutputStream())
+            ) {
+                dos.writeUTF("READY");
+
+                String fileName = dis.readUTF();
+                long fileSize = dis.readLong();
+
+                File outFile = (saveFolder != null)
+                        ? new File(saveFolder, fileName)
+                        : new File("received_" + fileName);
+
+                try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                    byte[] buffer = new byte[4096];
+                    long received = 0;
+                    int read;
+
+                    while (received < fileSize && (read = dis.read(buffer)) != -1) {
+                        fos.write(buffer, 0, read);
+                        received += read;
+                        int percent = (int) (received * 100 / fileSize);
+                        SwingUtilities.invokeLater(() -> progressBar.setValue(percent));
+                    }
+                }
+
+                SwingUtilities.invokeLater(() ->
+                        lblStatus.setText("Nhận xong file: " + fileName));
+
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() ->
+                        lblStatus.setText("Lỗi nhận file: " + ex.getMessage()));
+            }
+        }).start();
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> new ServerUI().setVisible(true));
+    }
+}
