@@ -26,14 +26,14 @@ public class ServerUI extends JFrame {
 
         // ===== Panel top =====
         JPanel panelTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
-        txtPort = new JTextField("", 6);
+        txtPort = new JTextField("", 10);
         btnStart = new JButton("Bắt đầu");
         btnCancel = new JButton("Huỷ");
         btnFolder = new JButton("Chọn thư mục");
 
         btnCancel.setEnabled(false);
 
-        panelTop.add(new JLabel("Port:"));
+        panelTop.add(new JLabel("Pass:"));
         panelTop.add(txtPort);
         panelTop.add(btnStart);
         panelTop.add(btnCancel);
@@ -69,7 +69,7 @@ public class ServerUI extends JFrame {
 
     private void startServer() {
         if (txtPort.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Vui lòng nhập port!");
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập pass!");
             return;
         }
 
@@ -160,4 +160,5 @@ public class ServerUI extends JFrame {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new ServerUI().setVisible(true));
     }
+ 
 }
