@@ -23,11 +23,11 @@ public class ClientUI extends JFrame {
 
         // ===== TOP =====
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10));
-        txtIP = new JTextField("127.0.0.1", 10);
-        txtPort = new JTextField(6);
+        txtIP = new JTextField("192.168.1.209", 15);
+        txtPort = new JTextField(8);
         top.add(new JLabel("IP:"));
         top.add(txtIP);
-        top.add(new JLabel("Port:"));
+        top.add(new JLabel("Pass:"));
         top.add(txtPort);
         add(top, BorderLayout.NORTH);
 
@@ -60,8 +60,8 @@ public class ClientUI extends JFrame {
         sendPanel.add(btnSend);
         sendPanel.add(progressBar);
 
-        lblSpeed = new JLabel("Tốc độ: 0 KB/s | Còn lại: --");
-        lblStatus = new JLabel(" ");
+        lblSpeed = new JLabel("Tốc độ: 0 KB/s | Còn lại: -- ");
+        lblStatus = new JLabel("");
         lblSecurity = new JLabel("🔒 Dữ liệu được mã hóa đầu cuối");
 
         bottom.add(sendPanel);
@@ -151,7 +151,7 @@ public class ClientUI extends JFrame {
             } catch (Exception e) {
                 SwingUtilities.invokeLater(() ->
                         JOptionPane.showMessageDialog(this,
-                                "❌ Không kết nối được server.\nHãy kiểm tra IP và Port."));
+                                "❌ Không kết nối được server.\nHãy kiểm tra IP và Pass."));
             }
         }).start();
     }
